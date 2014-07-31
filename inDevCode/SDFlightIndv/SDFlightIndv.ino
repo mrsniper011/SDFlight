@@ -225,6 +225,33 @@ int16_t altHistory[averagePoints];
 int32_t latHistory[averagePoints2];
 int32_t lonHistory[averagePoints2];
 
+//this function will start of a phresh new KML file to write to.
+void newKML() {
+    strcpy(filename2, "KMLLOG00.KML");
+  for (uint8_t i = 0; i < 100; i++) {
+    filename2[6] = '0' + i/10;
+    filename2[7] = '0' + i%10;
+    // create if does not exist, do not open existing, write, sync after write
+    if (! SD.exists(filename2)) {
+      break;
+    }
+  }
+  
+  logfile = SD.open(filename2, FILE_WRITE);
+  if( ! logfile ) {
+    //Serial.print("Couldnt create "); //Serial.println(filename2);
+    error(3);
+  }
+  //Serial.println("Writing to "); //Serial.println(filename2);
+  
+  char buffer[20];
+  for (int i = 0; i < 43; i++)
+  {
+    strcpy_P(buffer, (char*)pgm_read_word(&(string_table[i]))); // Necessary casts and dereferencing, just copy. 
+    logfile.print( buffer );
+  }
+  logfile.close();
+}
 
 void setup() {
   pinMode(loPin, INPUT);
@@ -272,30 +299,7 @@ void setup() {
     }
   }*/
   
-  strcpy(filename2, "KMLLOG00.KML");
-  for (uint8_t i = 0; i < 100; i++) {
-    filename2[6] = '0' + i/10;
-    filename2[7] = '0' + i%10;
-    // create if does not exist, do not open existing, write, sync after write
-    if (! SD.exists(filename2)) {
-      break;
-    }
-  }
-  
-  logfile = SD.open(filename2, FILE_WRITE);
-  if( ! logfile ) {
-    //Serial.print("Couldnt create "); //Serial.println(filename2);
-    error(3);
-  }
-  //Serial.println("Writing to "); //Serial.println(filename2);
-  
-  char buffer[20];
-  for (int i = 0; i < 43; i++)
-  {
-    strcpy_P(buffer, (char*)pgm_read_word(&(string_table[i]))); // Necessary casts and dereferencing, just copy. 
-    logfile.print( buffer );
-  }
-  logfile.close();
+  newKML();
   
   // connect to the GPS at the desired rate
   GPS.begin(9600);
