@@ -7,7 +7,8 @@
 |-----------------------------------------------------------------------------------
 | 0.1 | May 11 | Initial build, KML proof of concept
 | 0.2 | Jun 20 | Filtering for false data and outliers
-| 0.3 | Jul 07 | Auto file split between flights
+| 0.3 | Jul 31 | Auto file split between flights
+|                Date/time added to kml file info
 |
 */
 
@@ -52,51 +53,6 @@ uint8_t parseHex(char c) {
   if (c <= 'F')
     return (c - 'A')+10;
 }
-
-// blink out an error code
-void error(uint8_t errno) {
-/*
-  if (SD.errorCode()) {
-    putstring("SD error: ");
-    //Serial.print(card.errorCode(), HEX);
-    //Serial.print(',');
-    //Serial.println(card.errorData(), HEX);
-  }
-  */
-  while(1) {
-    uint8_t i;
-    for (i=0; i<errno; i++) {
-      digitalWrite(ledPin, HIGH);
-      delay(100);
-      digitalWrite(ledPin, LOW);
-      delay(100);
-    }
-    for (i=errno; i<10; i++) {
-      delay(200);
-    }
-  }
-}
-
-
-//When given two coordinates this function returns the great-circle distance between them.
-float HaverSine(float lat1, float lon1, float lat2, float lon2)
-{
-  float ToRad = PI / 180.0;
-  float R = 6371;   // radius earth in Km
-  
-  float dLat = (lat2-lat1) * ToRad;
-  float dLon = (lon2-lon1) * ToRad; 
-  
-  float a = sin(dLat/2) * sin(dLat/2) +
-        cos(lat1 * ToRad) * cos(lat2 * ToRad) * 
-        sin(dLon/2) * sin(dLon/2); 
-        
-  float c = 2 * atan2(sqrt(a), sqrt(1-a)); 
-  
-  float d = R * c;
-  return d;
-}
-
 
 
 //char filename[15];
@@ -225,6 +181,56 @@ int16_t altHistory[averagePoints];
 int32_t latHistory[averagePoints2];
 int32_t lonHistory[averagePoints2];
 
+boolean sdReady = false;
+int sdSplitTime = 0;
+define timeToSplit 1000//amount of program cycles before splitting to a new kml file.
+
+//--------Custom functions--------//
+
+// blink out an error code
+void error(uint8_t errno) {
+/*
+  if (SD.errorCode()) {
+    putstring("SD error: ");
+    //Serial.print(card.errorCode(), HEX);
+    //Serial.print(',');
+    //Serial.println(card.errorData(), HEX);
+  }
+  */
+  while(1) {
+    uint8_t i;
+    for (i=0; i<errno; i++) {
+      digitalWrite(ledPin, HIGH);
+      delay(100);
+      digitalWrite(ledPin, LOW);
+      delay(100);
+    }
+    for (i=errno; i<10; i++) {
+      delay(200);
+    }
+  }
+}
+
+
+//When given two coordinates this function returns the great-circle distance between them.
+float HaverSine(float lat1, float lon1, float lat2, float lon2)
+{
+  float ToRad = PI / 180.0;
+  float R = 6371;   // radius earth in Km
+  
+  float dLat = (lat2-lat1) * ToRad;
+  float dLon = (lon2-lon1) * ToRad; 
+  
+  float a = sin(dLat/2) * sin(dLat/2) +
+        cos(lat1 * ToRad) * cos(lat2 * ToRad) * 
+        sin(dLon/2) * sin(dLon/2); 
+        
+  float c = 2 * atan2(sqrt(a), sqrt(1-a)); 
+  
+  float d = R * c;
+  return d;
+}
+
 //this function will start of a phresh new KML file to write to.
 void newKML() {
     strcpy(filename2, "KMLLOG00.KML");
@@ -299,8 +305,6 @@ void setup() {
     }
   }*/
   
-  newKML();
-  
   // connect to the GPS at the desired rate
   GPS.begin(9600);
 
@@ -319,11 +323,7 @@ void setup() {
   //Serial.println("Ready!");
 }
 
-void loop() {
-  if(!digitalRead(loPin)){//if we detect the power switch has been turned off, abandon the program to avoid lost data.
-      return;
-    }
-  
+void loop() {  
   char c = GPS.read();
 
   //if (GPSECHO)
@@ -392,6 +392,26 @@ void loop() {
     double dAlt = GPS.altitude;
     
     double dSpeed = GPS.speed;
+    //-----------------------------------<indev code>
+    //if the sd card was never initialized with a new file, do that.
+    if(!sdReady){
+      newKML();
+      sdReady = true;
+    }else{//if it's been initialized but we've been sitting stopped for a significant period of time, start a new file.
+      if(dSpeed <= 5){
+        if(sdSplitTime<timeToSplit){
+          sdSplitTime++;
+        }else if(sdSplitTime == timeToSplit){
+          newKML();
+          sdSplitTime++;
+        }
+      }else{
+        if(dSpeed >= 15){
+          sdSplitTime = 0;
+        }
+      }        
+    }
+    //----------------------------------</indev code>
     
     //this section checks if there is an outlier in the altitude data
     long lAv = 0;
@@ -447,7 +467,7 @@ void loop() {
 
     
     
-    if(!digitalRead(loPin)){//if we detect the power switch has been turned off, abandon the program to avoid lost data.
+    if(!digitalRead(loPin) || !sdReady){//if we detect the power switch has been turned off, or the sd card doesn't have a file ready, abandon the program to avoid lost data.
       return;
     }
     digitalWrite(ledPin, HIGH);
@@ -462,9 +482,6 @@ void loop() {
     if(dLat == 0.0 && dLon == 0.0){
       
     }else{
-dLon = -77.141273;
-dLat = 43.989624;
-dAlt = 300.00;
       logfile.seek(logfile.position()-60);
   
       logfile.print(dLon,6);
