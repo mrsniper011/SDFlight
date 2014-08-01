@@ -390,28 +390,26 @@ void loop() {
       return;
     
     double dAlt = GPS.altitude;
-    
     double dSpeed = GPS.speed;
-    //-----------------------------------<indev code>
+
     //if the sd card was never initialized with a new file, do that.
     if(!sdReady){
       newKML();
       sdReady = true;
     }else{//if it's been initialized but we've been sitting stopped for a significant period of time, start a new file.
-      if(dSpeed <= 5){
-        if(sdSplitTime<timeToSplit){
+      if(sdSplitTime<timeToSplit){
+        if(dSpeed <= 5)
           sdSplitTime++;
-        }else if(sdSplitTime == timeToSplit){
+      }else if(sdSplitTime == timeToSplit){
           newKML();
           sdSplitTime++;
-        }
-      }else{
+      }
+      if(sdSplitTime != 0){
         if(dSpeed >= 15){
           sdSplitTime = 0;
         }
-      }        
+      }
     }
-    //----------------------------------</indev code>
     
     //this section checks if there is an outlier in the altitude data
     long lAv = 0;
